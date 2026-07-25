@@ -186,10 +186,8 @@ function selectionnerListe(listeId) {
 
   if (session.role === "admin") {
     closeBtn.classList.toggle("hidden", !!liste.cloturee);
-    deleteBtn.classList.remove("hidden");
   } else {
     closeBtn.classList.add("hidden");
-    deleteBtn.classList.add("hidden");
   }
 
   if (unsubArticles) unsubArticles();
@@ -224,6 +222,14 @@ document.getElementById("new-list-confirm").addEventListener("click", async () =
     cloturee: false
   });
   document.getElementById("modal-new-list").classList.add("hidden");
+});
+
+document.getElementById("rename-list-btn").addEventListener("click", async () => {
+  const liste = listesActuelles.find(l => l.id === listeActiveId);
+  if (!liste) return;
+  const nouveauNom = prompt("Nouveau nom de la liste :", liste.nom);
+  if (!nouveauNom || !nouveauNom.trim() || nouveauNom.trim() === liste.nom) return;
+  await db.collection("listes").doc(listeActiveId).update({ nom: nouveauNom.trim() });
 });
 
 document.getElementById("close-list-btn").addEventListener("click", async () => {
