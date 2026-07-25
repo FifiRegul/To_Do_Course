@@ -14,22 +14,46 @@ let historiqueCache = [];    // pour l'autocomplete
 // DEMARRAGE
 // ------------------------------------------------------------
 window.addEventListener("load", async () => {
-  await initialiserUtilisateursSiBesoin();
-  await initialiserRayonsSiBesoin();
+  try {
+    await initialiserUtilisateursSiBesoin();
+    await initialiserRayonsSiBesoin();
 
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").catch(console.error);
-  }
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(console.error);
+    }
 
-  const s = lireSession();
-  document.getElementById("splash").classList.add("hidden");
+    const s = lireSession();
+    document.getElementById("splash").classList.add("hidden");
 
-  if (s && s.pseudo) {
-    demarrerSession(s.pseudo, s.role);
-  } else {
-    document.getElementById("login-screen").classList.remove("hidden");
+    if (s && s.pseudo) {
+      demarrerSession(s.pseudo, s.role);
+    } else {
+      document.getElementById("login-screen").classList.remove("hidden");
+    }
+  } catch (err) {
+    console.error("Erreur au démarrage :", err);
+    afficherErreurDemarrage(err);
   }
 });
+
+function afficherErreurDemarrage(err) {
+  const splash = document.getElementById("splash");
+  let message = "Impossible de se connecter à la base de données.";
+  const txt = String(err && err.message || err);
+  if (txt.includes("PERMISSION_DENIED") || txt.includes("permission")) {
+    message = "Accès refusé par les règles Firestore. Vérifiez qu'elles autorisent la lecture/écriture (voir DEPLOIEMENT.md, étape 2).";
+  } else if (txt.includes("VOTRE_") || txt.includes("api-key-not-valid") || txt.includes("invalid-api-key")) {
+    message = "La configuration Firebase (js/firebase-config.js) contient encore des valeurs à remplacer (VOTRE_API_KEY, etc.). Voir DEPLOIEMENT.md, étape 1.";
+  } else if (txt.includes("project") || txt.includes("not-found")) {
+    message = "Le projet Firebase indiqué dans js/firebase-config.js est introuvable. Vérifiez le projectId.";
+  }
+  splash.innerHTML = `
+    <div class="splash-logo">⚠️</div>
+    <div class="splash-title">Problème de connexion</div>
+    <div class="splash-sub" style="max-width:320px;text-align:center;margin-top:10px;line-height:1.4;">${message}</div>
+    <div class="splash-sub" style="margin-top:16px;font-size:11px;opacity:0.7;">Détail technique : ${escapeHtml(txt)}</div>
+  `;
+}
 
 async function initialiserRayonsSiBesoin() {
   const snap = await db.collection("rayons").limit(1).get();

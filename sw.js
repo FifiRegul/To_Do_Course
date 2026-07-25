@@ -3,7 +3,12 @@
 // d'usage hors-ligne. Les données (Firestore) restent gérées en ligne
 // avec cache local automatique par le SDK Firebase.
 
-const CACHE_NAME = "liste-famille-v1";
+// IMPORTANT : incrémenter ce numéro à CHAQUE déploiement qui modifie
+// index.html, un fichier css/ ou js/. Cela force tous les navigateurs à
+// récupérer la nouvelle version au lieu de resservir indéfiniment
+// l'ancienne depuis le cache.
+const CACHE_VERSION = "v3";
+const CACHE_NAME = "liste-famille-" + CACHE_VERSION;
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -36,10 +41,33 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
   // Ne jamais mettre en cache les appels Firebase/Firestore : réseau uniquement.
   if (event.request.url.includes("firestore") || event.request.url.includes("firebaseio")) {
     return;
   }
+
+  // Réseau EN PRIORITE pour le HTML et le JS/CSS de l'app : garantit que
+  // toute mise à jour de code est visible dès le prochain chargement,
+  // avec repli sur le cache uniquement si hors-ligne.
+  const url = new URL(event.request.url);
+  const estShell = event.request.mode === "navigate" ||
+    /\.(js|css|json)$/.test(url.pathname);
+
+  if (estShell) {
+    event.respondWith(
+      fetch(event.request)
+        .then((reponse) => {
+          const clone = reponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          return reponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Cache-first pour le reste (icônes...)
   event.respondWith(
     caches.match(event.request).then((cached) => cached || fetch(event.request))
   );
