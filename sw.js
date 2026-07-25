@@ -7,7 +7,7 @@
 // index.html, un fichier css/ ou js/. Cela force tous les navigateurs à
 // récupérer la nouvelle version au lieu de resservir indéfiniment
 // l'ancienne depuis le cache.
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v4";
 const CACHE_NAME = "liste-famille-" + CACHE_VERSION;
 const SHELL_FILES = [
   "./",
@@ -20,6 +20,9 @@ const SHELL_FILES = [
   "./js/auth.js",
   "./js/notifications.js",
   "./js/app.js",
+  "./vendor/firebase/firebase-app-compat.js",
+  "./vendor/firebase/firebase-firestore-compat.js",
+  "./vendor/firebase/firebase-messaging-compat.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png"
 ];

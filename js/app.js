@@ -40,7 +40,9 @@ function afficherErreurDemarrage(err) {
   const splash = document.getElementById("splash");
   let message = "Impossible de se connecter à la base de données.";
   const txt = String(err && err.message || err);
-  if (txt.includes("PERMISSION_DENIED") || txt.includes("permission")) {
+  if (txt.includes("firebase is not defined") || txt.includes("db is not defined")) {
+    message = "Le SDK Firebase n'a pas pu se charger. Vérifiez votre connexion internet, ou désactivez temporairement un bloqueur de pub / les Shields Brave pour ce site, puis rechargez la page.";
+  } else if (txt.includes("PERMISSION_DENIED") || txt.includes("permission")) {
     message = "Accès refusé par les règles Firestore. Vérifiez qu'elles autorisent la lecture/écriture (voir DEPLOIEMENT.md, étape 2).";
   } else if (txt.includes("VOTRE_") || txt.includes("api-key-not-valid") || txt.includes("invalid-api-key")) {
     message = "La configuration Firebase (js/firebase-config.js) contient encore des valeurs à remplacer (VOTRE_API_KEY, etc.). Voir DEPLOIEMENT.md, étape 1.";
