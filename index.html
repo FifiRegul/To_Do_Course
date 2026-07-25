@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Liste de Courses - Famille</title>
+<meta name="theme-color" content="#2e7d32">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/print.css" media="print">
+</head>
+<body>
+
+<!-- ===================== ECRAN DE CHARGEMENT ===================== -->
+<div id="splash" class="splash">
+  <div class="splash-logo">🛒</div>
+  <div class="splash-title">Liste de Courses</div>
+  <div class="splash-sub">Famille Maranci</div>
+</div>
+
+<!-- ===================== ECRAN DE CONNEXION ===================== -->
+<div id="login-screen" class="screen hidden">
+  <div class="login-card">
+    <div class="login-logo">🛒</div>
+    <h1>Liste de Courses</h1>
+    <p class="login-sub">Connexion famille</p>
+
+    <label for="login-pseudo">Utilisateur</label>
+    <select id="login-pseudo">
+      <option value="">-- Choisir --</option>
+      <option value="Michel">Michel</option>
+      <option value="Stéphanie">Stéphanie</option>
+      <option value="Julie">Julie</option>
+      <option value="Morgane">Morgane</option>
+      <option value="Matthieu">Matthieu</option>
+    </select>
+
+    <label for="login-password">Mot de passe</label>
+    <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+
+    <button id="login-btn" class="btn-primary">Se connecter</button>
+    <div id="login-error" class="error-msg hidden"></div>
+
+    <p class="login-hint">Mot de passe oublié ? Contacte Stéphanie (admin).</p>
+  </div>
+</div>
+
+<!-- ===================== APPLICATION PRINCIPALE ===================== -->
+<div id="app-screen" class="screen hidden">
+
+  <!-- Bandeau notification clôture -->
+  <div id="closure-banner" class="closure-banner hidden">
+    <span id="closure-banner-text"></span>
+    <button id="closure-banner-close">✕</button>
+  </div>
+
+  <!-- Barre supérieure -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="app-icon">🛒</span>
+      <span class="app-name">Liste Famille</span>
+    </div>
+    <div class="topbar-right">
+      <span id="current-user" class="current-user"></span>
+      <button id="admin-btn" class="icon-btn hidden" title="Administration">⚙️</button>
+      <button id="logout-btn" class="icon-btn" title="Déconnexion">🚪</button>
+    </div>
+  </header>
+
+  <!-- Sélecteur de listes -->
+  <div class="lists-bar">
+    <div id="lists-tabs" class="lists-tabs"></div>
+    <button id="new-list-btn" class="btn-small">+ Nouvelle liste</button>
+  </div>
+
+  <!-- Contenu de la liste active -->
+  <main id="main-content" class="main-content">
+
+    <div id="list-empty-state" class="empty-state hidden">
+      <p>Aucune liste pour le moment.</p>
+      <button id="create-first-list-btn" class="btn-primary">Créer une liste</button>
+    </div>
+
+    <div id="list-view" class="list-view hidden">
+
+      <div class="list-header">
+        <h2 id="list-title"></h2>
+        <div class="list-header-actions">
+          <button id="print-btn" class="btn-small" title="Imprimer en A5">🖨️ Imprimer</button>
+          <button id="close-list-btn" class="btn-small hidden" title="Clôturer la liste (admin)">✅ Clôturer</button>
+          <button id="delete-list-btn" class="icon-btn hidden" title="Supprimer la liste">🗑️</button>
+        </div>
+      </div>
+
+      <div id="list-closed-tag" class="list-closed-tag hidden">🔒 Liste clôturée</div>
+
+      <!-- Formulaire d'ajout -->
+      <div class="add-article-form">
+        <div class="autocomplete-wrap">
+          <input type="text" id="article-name" placeholder="Ajouter un article..." autocomplete="off">
+          <div id="autocomplete-list" class="autocomplete-list hidden"></div>
+        </div>
+        <input type="number" id="article-qty" placeholder="Qté" min="0" step="0.1" value="1">
+        <select id="article-unit">
+          <option value="">unité</option>
+          <option value="pièce(s)">pièce(s)</option>
+          <option value="kg">kg</option>
+          <option value="g">g</option>
+          <option value="L">L</option>
+          <option value="mL">mL</option>
+          <option value="paquet(s)">paquet(s)</option>
+          <option value="boîte(s)">boîte(s)</option>
+          <option value="bouteille(s)">bouteille(s)</option>
+        </select>
+        <select id="article-rayon"></select>
+        <button id="add-article-btn" class="btn-primary">Ajouter</button>
+      </div>
+
+      <!-- Articles à acheter, groupés par rayon -->
+      <div id="rayons-container" class="rayons-container"></div>
+
+      <!-- Section "Dans le panier" -->
+      <div class="cart-section">
+        <h3 id="cart-title">🛒 Dans le panier (<span id="cart-count">0</span>)</h3>
+        <div id="cart-list" class="cart-list"></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- ===================== MODALE NOUVELLE LISTE ===================== -->
+<div id="modal-new-list" class="modal hidden">
+  <div class="modal-content">
+    <h3>Nouvelle liste</h3>
+    <input type="text" id="new-list-name" placeholder="Ex: Lidl, Marché, Pharmacie...">
+    <div class="modal-actions">
+      <button id="new-list-cancel" class="btn-secondary">Annuler</button>
+      <button id="new-list-confirm" class="btn-primary">Créer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PANNEAU ADMIN ===================== -->
+<div id="modal-admin" class="modal hidden">
+  <div class="modal-content modal-large">
+    <div class="modal-header">
+      <h3>⚙️ Administration</h3>
+      <button id="admin-close" class="icon-btn">✕</button>
+    </div>
+
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-tab="passwords">Mots de passe</button>
+      <button class="admin-tab" data-tab="rayons">Rayons</button>
+    </div>
+
+    <div id="admin-tab-passwords" class="admin-tab-content">
+      <p class="admin-hint">Modifier le mot de passe d'un membre de la famille.</p>
+      <div id="admin-users-list"></div>
+    </div>
+
+    <div id="admin-tab-rayons" class="admin-tab-content hidden">
+      <p class="admin-hint">Gérer les rayons et leurs mots-clés de classement automatique.</p>
+      <button id="add-rayon-btn" class="btn-small">+ Nouveau rayon</button>
+      <div id="admin-rayons-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ZONE D'IMPRESSION A5 ===================== -->
+<div id="print-area" class="print-area"></div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/rayons-default.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
