@@ -17,7 +17,7 @@
 <div id="splash" class="splash">
   <div class="splash-logo">🛒</div>
   <div class="splash-title">Liste de Courses</div>
-  <div class="splash-sub">Famille Marancie</div>
+  <div class="splash-sub">Famille Maranci</div>
 </div>
 
 <!-- ===================== ECRAN DE CONNEXION ===================== -->
@@ -172,10 +172,11 @@
 <!-- ===================== ZONE D'IMPRESSION A5 ===================== -->
 <div id="print-area" class="print-area"></div>
 
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+<!-- SDK Firebase hébergé localement (au lieu du CDN gstatic.com) pour éviter
+     les blocages par les bloqueurs de pub / navigateurs type Brave -->
+<script src="vendor/firebase/firebase-app-compat.js"></script>
+<script src="vendor/firebase/firebase-firestore-compat.js"></script>
+<script src="vendor/firebase/firebase-messaging-compat.js"></script>
 
 <script src="js/firebase-config.js"></script>
 <script src="js/rayons-default.js"></script>
