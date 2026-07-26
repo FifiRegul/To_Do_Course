@@ -5,7 +5,7 @@
 // Voir DEPLOIEMENT.md section "1. Créer le projet Firebase"
 // ============================================================
 const firebaseConfig = {
-   apiKey: "AIzaSyDlbQ7W0Vvc4znhHNVVLTSBzvAwCtG0T9Q",
+  apiKey: "AIzaSyDlbQ7W0Vvc4znhHNVVLTSBzvAwCtG0T9Q",
   authDomain: "todocourse-96295.firebaseapp.com",
   projectId: "todocourse-96295",
   storageBucket: "todocourse-96295.firebasestorage.app",

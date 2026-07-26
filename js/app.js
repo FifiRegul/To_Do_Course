@@ -4,8 +4,10 @@
 
 let session = null;          // { pseudo, role }
 let rayonsActuels = [];      // depuis Firestore, triés par "ordre"
+let rayonsVoyageActuels = []; // depuis Firestore ("rayonsVoyage"), triés par "ordre"
 let listesActuelles = [];    // depuel Firestore
 let listeActiveId = null;
+let typeListeActive = "courses"; // "courses" | "voyage"
 let unsubArticles = null;
 let articlesActuels = [];
 let historiqueCache = [];    // pour l'autocomplete
@@ -17,6 +19,7 @@ window.addEventListener("load", async () => {
   try {
     await initialiserUtilisateursSiBesoin();
     await initialiserRayonsSiBesoin();
+    await initialiserRayonsVoyageSiBesoin();
 
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(console.error);
@@ -67,6 +70,16 @@ async function initialiserRayonsSiBesoin() {
   await batch.commit();
 }
 
+async function initialiserRayonsVoyageSiBesoin() {
+  const snap = await db.collection("rayonsVoyage").limit(1).get();
+  if (!snap.empty) return;
+  const batch = db.batch();
+  VOYAGE_CATEGORIES_DEFAUT.forEach(r => {
+    batch.set(db.collection("rayonsVoyage").doc(r.id), r);
+  });
+  await batch.commit();
+}
+
 // ------------------------------------------------------------
 // LOGIN
 // ------------------------------------------------------------
@@ -104,6 +117,7 @@ function demarrerSession(pseudo, role) {
   demanderPermissionNotification();
   ecouterNotificationsCloture(pseudo);
   ecouterRayons();
+  ecouterRayonsVoyage();
   ecouterListes();
   ecouterHistorique();
 }
@@ -114,18 +128,35 @@ function demarrerSession(pseudo, role) {
 function ecouterRayons() {
   db.collection("rayons").orderBy("ordre").onSnapshot((snap) => {
     rayonsActuels = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    remplirSelectRayons();
-    if (listeActiveId) afficherArticles();
+    if (typeListeActive !== "voyage") remplirSelectRayons();
+    if (listeActiveId && typeListeActive !== "voyage") afficherArticles();
     if (!document.getElementById("modal-admin").classList.contains("hidden")) {
       renderAdminRayons();
     }
   });
 }
 
+function ecouterRayonsVoyage() {
+  db.collection("rayonsVoyage").orderBy("ordre").onSnapshot((snap) => {
+    rayonsVoyageActuels = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (typeListeActive === "voyage") remplirSelectRayons();
+    if (listeActiveId && typeListeActive === "voyage") afficherArticles();
+    if (!document.getElementById("modal-admin").classList.contains("hidden")) {
+      renderAdminRayonsVoyage();
+    }
+  });
+}
+
 function remplirSelectRayons() {
   const sel = document.getElementById("article-rayon");
+  const categories = categoriesPourType(typeListeActive);
   sel.innerHTML = `<option value="">Rayon auto</option>` +
-    rayonsActuels.map(r => `<option value="${r.id}">${r.nom}</option>`).join("");
+    categories.map(r => `<option value="${r.id}">${r.nom}</option>`).join("");
+}
+
+function categoriesPourType(type) {
+  const liste = type === "voyage" ? rayonsVoyageActuels : rayonsActuels;
+  return [...liste].sort((a, b) => a.ordre - b.ordre);
 }
 
 // ------------------------------------------------------------
@@ -156,7 +187,7 @@ function renderListsTabs() {
   container.innerHTML = listesActuelles.map(l => `
     <div class="list-tab ${l.id === listeActiveId ? "active" : ""} ${l.cloturee ? "closed" : ""}"
          data-id="${l.id}">
-      ${l.cloturee ? "🔒 " : ""}${escapeHtml(l.nom)}
+      ${l.cloturee ? "🔒 " : (l.type === "voyage" ? "🧳 " : "")}${escapeHtml(l.nom)}
     </div>
   `).join("");
 
@@ -172,8 +203,18 @@ function selectionnerListe(listeId) {
   const liste = listesActuelles.find(l => l.id === listeId);
   if (!liste) return;
 
+  typeListeActive = liste.type || "courses";
+  remplirSelectRayons();
+
   document.getElementById("list-view").classList.remove("hidden");
-  document.getElementById("list-title").textContent = liste.nom;
+  document.getElementById("list-title").textContent = (liste.type === "voyage" ? "🧳 " : "") + liste.nom;
+
+  const qtyInput = document.getElementById("article-qty");
+  const unitSelect = document.getElementById("article-unit");
+  const estVoyage = typeListeActive === "voyage";
+  qtyInput.style.display = estVoyage ? "none" : "";
+  unitSelect.style.display = estVoyage ? "none" : "";
+  inputNom.placeholder = estVoyage ? "Ajouter une tâche / un préparatif..." : "Ajouter un article...";
 
   const closeBtn = document.getElementById("close-list-btn");
   const deleteBtn = document.getElementById("delete-list-btn");
@@ -205,6 +246,7 @@ function selectionnerListe(listeId) {
 function ouvrirModalNouvelleListe() {
   document.getElementById("modal-new-list").classList.remove("hidden");
   document.getElementById("new-list-name").value = "";
+  document.querySelector('input[name="new-list-type"][value="courses"]').checked = true;
   document.getElementById("new-list-name").focus();
 }
 document.getElementById("new-list-btn").addEventListener("click", ouvrirModalNouvelleListe);
@@ -215,14 +257,46 @@ document.getElementById("new-list-cancel").addEventListener("click", () => {
 document.getElementById("new-list-confirm").addEventListener("click", async () => {
   const nom = document.getElementById("new-list-name").value.trim();
   if (!nom) return;
-  await db.collection("listes").add({
+  const type = document.querySelector('input[name="new-list-type"]:checked').value;
+
+  const ref = await db.collection("listes").add({
     nom,
+    type,
     creePar: session.pseudo,
     dateCreation: firebase.firestore.FieldValue.serverTimestamp(),
     cloturee: false
   });
+
+  if (type === "voyage") {
+    await preremplirChecklistVoyage(ref.id, session.pseudo);
+  }
+
   document.getElementById("modal-new-list").classList.add("hidden");
 });
+
+/**
+ * Pré-remplit une liste "Préparation Voyage" avec la checklist type,
+ * catégorie par catégorie, à partir de VOYAGE_ITEMS_PAR_DEFAUT.
+ */
+async function preremplirChecklistVoyage(listeId, pseudo) {
+  const batch = db.batch();
+  const articlesRef = db.collection("listes").doc(listeId).collection("articles");
+  Object.entries(VOYAGE_ITEMS_PAR_DEFAUT).forEach(([rayonId, items]) => {
+    items.forEach((nomArticle) => {
+      const docRef = articlesRef.doc();
+      batch.set(docRef, {
+        nom: nomArticle,
+        quantite: null,
+        unite: "",
+        rayonId,
+        coche: false,
+        ajoutePar: pseudo,
+        dateAjout: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+  });
+  await batch.commit();
+}
 
 document.getElementById("rename-list-btn").addEventListener("click", async () => {
   const liste = listesActuelles.find(l => l.id === listeActiveId);
@@ -316,7 +390,7 @@ async function ajouterArticle() {
   const unite = document.getElementById("article-unit").value;
   let rayonId = document.getElementById("article-rayon").value;
   if (!rayonId) {
-    rayonId = classifierArticle(nom, rayonsActuels);
+    rayonId = classifierArticle(nom, categoriesPourType(typeListeActive));
   }
 
   await db.collection("listes").doc(listeActiveId).collection("articles").add({
@@ -329,7 +403,9 @@ async function ajouterArticle() {
     dateAjout: firebase.firestore.FieldValue.serverTimestamp()
   });
 
-  await enregistrerDansHistorique(nom, rayonId, session.pseudo);
+  if (typeListeActive !== "voyage") {
+    await enregistrerDansHistorique(nom, rayonId, session.pseudo);
+  }
 
   inputNom.value = "";
   document.getElementById("article-qty").value = "1";
@@ -396,7 +472,7 @@ function afficherArticles() {
     parRayon[rid].push(a);
   });
 
-  const rayonsOrdonnes = [...rayonsActuels].sort((a, b) => a.ordre - b.ordre);
+  const rayonsOrdonnes = categoriesPourType(typeListeActive);
   const container = document.getElementById("rayons-container");
 
   container.innerHTML = rayonsOrdonnes
@@ -467,7 +543,7 @@ document.getElementById("print-btn").addEventListener("click", () => {
     if (!parRayon[rid]) parRayon[rid] = [];
     parRayon[rid].push(a);
   });
-  const rayonsOrdonnes = [...rayonsActuels].sort((a, b) => a.ordre - b.ordre);
+  const rayonsOrdonnes = categoriesPourType(typeListeActive);
 
   const dateStr = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
 
@@ -503,6 +579,7 @@ document.getElementById("admin-btn").addEventListener("click", () => {
   document.getElementById("modal-admin").classList.remove("hidden");
   renderAdminUsers();
   renderAdminRayons();
+  renderAdminRayonsVoyage();
 });
 document.getElementById("admin-close").addEventListener("click", () => {
   document.getElementById("modal-admin").classList.add("hidden");
@@ -544,9 +621,13 @@ function renderAdminUsers() {
   });
 }
 
-function renderAdminRayons() {
-  const container = document.getElementById("admin-rayons-list");
-  container.innerHTML = rayonsActuels.map(r => `
+/**
+ * Rendu générique de la liste des rayons/catégories éditables pour une
+ * collection Firestore donnée ("rayons" ou "rayonsVoyage").
+ */
+function renderAdminRayonsGenerique(containerId, collectionName, items) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = items.map(r => `
     <div class="admin-rayon-row" data-id="${r.id}">
       <div class="rayon-name-row">
         <input type="text" class="rayon-name" value="${escapeHtml(r.nom)}">
@@ -554,7 +635,7 @@ function renderAdminRayons() {
       </div>
       <div class="rayon-hint">Mots-clés (séparés par des virgules) :</div>
       <textarea class="rayon-keywords">${(r.motscles || []).join(", ")}</textarea>
-      <button class="btn-small rayon-save" style="margin-top:6px;">Enregistrer ce rayon</button>
+      <button class="btn-small rayon-save" style="margin-top:6px;">Enregistrer</button>
     </div>
   `).join("");
 
@@ -565,9 +646,9 @@ function renderAdminRayons() {
       const nom = row.querySelector(".rayon-name").value.trim();
       const motscles = row.querySelector(".rayon-keywords").value
         .split(",").map(s => s.trim()).filter(Boolean);
-      await db.collection("rayons").doc(id).update({ nom, motscles });
+      await db.collection(collectionName).doc(id).update({ nom, motscles });
       btn.textContent = "✓ Enregistré";
-      setTimeout(() => btn.textContent = "Enregistrer ce rayon", 1500);
+      setTimeout(() => btn.textContent = "Enregistrer", 1500);
     });
   });
 
@@ -575,10 +656,18 @@ function renderAdminRayons() {
     btn.addEventListener("click", async () => {
       const row = btn.closest(".admin-rayon-row");
       const id = row.dataset.id;
-      if (!confirm("Supprimer ce rayon ? Les articles déjà classés dedans resteront tels quels.")) return;
-      await db.collection("rayons").doc(id).delete();
+      if (!confirm("Supprimer cette catégorie ? Les articles déjà classés dedans resteront tels quels.")) return;
+      await db.collection(collectionName).doc(id).delete();
     });
   });
+}
+
+function renderAdminRayons() {
+  renderAdminRayonsGenerique("admin-rayons-list", "rayons", rayonsActuels);
+}
+
+function renderAdminRayonsVoyage() {
+  renderAdminRayonsGenerique("admin-rayons-voyage-list", "rayonsVoyage", rayonsVoyageActuels);
 }
 
 document.getElementById("add-rayon-btn").addEventListener("click", async () => {
@@ -587,6 +676,16 @@ document.getElementById("add-rayon-btn").addEventListener("click", async () => {
   const id = slugify(nom) || ("rayon-" + Date.now());
   const maxOrdre = Math.max(0, ...rayonsActuels.map(r => r.ordre || 0));
   await db.collection("rayons").doc(id).set({
+    nom, motscles: [], ordre: maxOrdre + 1
+  });
+});
+
+document.getElementById("add-rayon-voyage-btn").addEventListener("click", async () => {
+  const nom = prompt("Nom de la nouvelle catégorie voyage (avec emoji si souhaité) :");
+  if (!nom) return;
+  const id = "voyage-" + (slugify(nom) || Date.now());
+  const maxOrdre = Math.max(0, ...rayonsVoyageActuels.map(r => r.ordre || 0));
+  await db.collection("rayonsVoyage").doc(id).set({
     nom, motscles: [], ordre: maxOrdre + 1
   });
 });
