@@ -60,24 +60,42 @@ function afficherErreurDemarrage(err) {
   `;
 }
 
+/**
+ * Initialise la collection "rayons" si elle est vide, ET synchronise
+ * ensuite les nouveaux rayons ajoutés à RAYONS_DEFAUT (dans le code)
+ * qui ne sont pas encore présents dans Firestore. Les rayons déjà
+ * existants ne sont jamais écrasés (mots-clés modifiés depuis le
+ * panneau Admin préservés).
+ */
 async function initialiserRayonsSiBesoin() {
-  const snap = await db.collection("rayons").limit(1).get();
-  if (!snap.empty) return;
+  const snap = await db.collection("rayons").get();
+  const idsExistants = new Set(snap.docs.map(d => d.id));
+  const manquants = RAYONS_DEFAUT.filter(r => !idsExistants.has(r.id));
+  if (manquants.length === 0) return;
+
   const batch = db.batch();
-  RAYONS_DEFAUT.forEach(r => {
+  manquants.forEach(r => {
     batch.set(db.collection("rayons").doc(r.id), r);
   });
   await batch.commit();
+  console.log(`${manquants.length} nouveau(x) rayon(s) synchronisé(s) :`, manquants.map(r => r.id).join(", "));
 }
 
+/**
+ * Idem que initialiserRayonsSiBesoin, pour les catégories "voyage".
+ */
 async function initialiserRayonsVoyageSiBesoin() {
-  const snap = await db.collection("rayonsVoyage").limit(1).get();
-  if (!snap.empty) return;
+  const snap = await db.collection("rayonsVoyage").get();
+  const idsExistants = new Set(snap.docs.map(d => d.id));
+  const manquants = VOYAGE_CATEGORIES_DEFAUT.filter(r => !idsExistants.has(r.id));
+  if (manquants.length === 0) return;
+
   const batch = db.batch();
-  VOYAGE_CATEGORIES_DEFAUT.forEach(r => {
+  manquants.forEach(r => {
     batch.set(db.collection("rayonsVoyage").doc(r.id), r);
   });
   await batch.commit();
+  console.log(`${manquants.length} nouvelle(s) catégorie(s) voyage synchronisée(s) :`, manquants.map(r => r.id).join(", "));
 }
 
 // ------------------------------------------------------------
